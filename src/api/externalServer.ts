@@ -1,5 +1,5 @@
 // Cliente para servidor HTTP externo
-const EXTERNAL_SERVER_BASE = 'http://72.60.246.250:8087';
+const EXTERNAL_SERVER_BASE = 'http://localhost:9091';
 const AUDIO_PATH = `${EXTERNAL_SERVER_BASE}/audios`;
 const DATABASE_PATH = `${EXTERNAL_SERVER_BASE}/bancoexterno`;
 
