@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { externalServer } from "@/api/externalServer";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Printer, Copy } from "lucide-react";
 import { format } from "date-fns";
-import { saveProductMeta, parseCostItems } from "@/utils/productMeta";
+import { parseCostItems } from "@/utils/productMeta";
 import ProductForm from "../components/products/ProductForm";
 import { toast } from "sonner";
 
@@ -22,27 +22,25 @@ export default function Products() {
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const data = await base44.entities.Product.list();
+      const data = await externalServer.getFromExternalDatabase('products');
       // Ordenar localmente por data de criação (mais recente primeiro)
       return data.sort((a: any, b: any) => {
-        const dateA = new Date(a.created_date).getTime();
-        const dateB = new Date(b.created_date).getTime();
+        const dateA = new Date(a.created_date).getTime() || 0;
+        const dateB = new Date(b.created_date).getTime() || 0;
         return dateB - dateA;
       });
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Product.create(data),
-    onSuccess: (created: any, variables: any) => {
-      // Salva meta local (componentes e itens detalhados)
-      const newId = created?.id;
-      if (newId) {
-        saveProductMeta(newId, {
-          components_text: variables?.components_text || '',
-          cost_items: parseCostItems(variables?.cost_items),
-        });
-      }
+    mutationFn: (data) => {
+      // Garantir que cost_details seja uma string JSON para o backend SQL
+      const costDetailsJson = JSON.stringify(parseCostItems(data?.cost_items));
+      const productData = { ...data, cost_details: costDetailsJson };
+      delete productData.cost_items; // Remover o campo original, se existir
+      return externalServer.saveToExternalDatabase('products', productData);
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setShowForm(false);
       setEditingProduct(null);
@@ -54,15 +52,14 @@ export default function Products() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => base44.entities.Product.update(id, data),
-    onSuccess: (_resp: any, variables: { id: string; data: any }) => {
-      // Atualiza meta local
-      if (variables?.id) {
-        saveProductMeta(variables.id, {
-          components_text: variables.data?.components_text || '',
-          cost_items: parseCostItems(variables.data?.cost_items),
-        });
-      }
+    mutationFn: ({ id, data }: { id: string; data: any }) => {
+      // Garantir que cost_details seja uma string JSON para o backend SQL
+      const costDetailsJson = JSON.stringify(parseCostItems(data?.cost_items));
+      const productData = { ...data, cost_details: costDetailsJson };
+      delete productData.cost_items; // Remover o campo original, se existir
+      return externalServer.updateInExternalDatabase('products', id, productData);
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setShowForm(false);
       setEditingProduct(null);
@@ -74,7 +71,7 @@ export default function Products() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => base44.entities.Product.delete(id),
+    mutationFn: (id: string) => externalServer.deleteFromExternalDatabase('products', id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success("Produto excluído!");
@@ -83,7 +80,7 @@ export default function Products() {
 
   const deleteSelectedMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map(id => base44.entities.Product.delete(id)));
+      await Promise.all(ids.map(id => externalServer.deleteFromExternalDatabase('products', id)));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -103,12 +100,17 @@ export default function Products() {
   };
 
   const handleEdit = (product: any) => {
-    setEditingProduct(product);
+    // Adiciona a lógica para desserializar cost_details de volta para cost_items para o formulário
+    const productWithCostItems = {
+      ...product,
+      cost_items: product.cost_details ? parseCostItems(JSON.parse(product.cost_details)) : [],
+    };
+    setEditingProduct(productWithCostItems);
     setShowForm(true);
   };
 
   const handleClone = async (product: any) => {
-    const { id, created_date, updated_date, ...clonedData } = product;
+    const { id, created_date, updated_date, cost_details, ...clonedData } = product;
     const clonedProduct = {
       ...clonedData,
       product_name: `${clonedData.product_name} (Cópia)`,

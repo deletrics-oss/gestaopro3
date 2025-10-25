@@ -40,73 +40,37 @@ export default function CashManagement() {
     date: new Date().toISOString().split('T')[0],
   });
 
-  // Inicializar armazenamento local se necessário
-  useEffect(() => {
-    if (!localStorage.getItem('cash_movements')) {
-      localStorage.setItem('cash_movements', '[]');
-    }
-  }, []);
 
-  // Buscar movimentos do localStorage
+
+  // Buscar movimentos do backend SQL
   const { data: movements = [] } = useQuery({
     queryKey: ['cash_movements'],
-    queryFn: () => {
-      try {
-        const stored = localStorage.getItem('cash_movements');
-        const data = stored ? JSON.parse(stored) : [];
-        return data.sort((a: CashMovement, b: CashMovement) => 
-          new Date(b.created_date).getTime() - new Date(a.created_date).getTime()
-        );
-      } catch (e) {
-        console.error('Erro ao carregar movimentos:', e);
-        return [];
-      }
+    queryFn: async () => {
+      const data = await externalServer.getFromExternalDatabase('cash_movements');
+      return data.sort((a: CashMovement, b: CashMovement) => 
+        new Date(b.created_date).getTime() - new Date(a.created_date).getTime()
+      );
     },
   });
 
   const createMovement = useMutation({
     mutationFn: async (data: Omit<CashMovement, 'id' | 'created_date'>) => {
-      const stored = localStorage.getItem('cash_movements');
-      const existingMovements = stored ? JSON.parse(stored) : [];
-      
       if (isEditing && editingId) {
-        const updated = existingMovements.map((m: CashMovement) => 
-          m.id === editingId ? { ...m, ...data } : m
-        );
-        localStorage.setItem('cash_movements', JSON.stringify(updated));
-        // Tentar atualizar no servidor externo
-        try {
-          await externalServer.updateInExternalDatabase('cash_movements', editingId, data);
-        } catch (e) {
-          // Fallback já tratado no cliente
-        }
-        return data;
+        // Atualizar no servidor SQL
+        const updatedMovement = await externalServer.updateInExternalDatabase('cash_movements', editingId, data);
+        return updatedMovement;
       } else {
         const newMovement: CashMovement = {
           ...data,
-          id: Date.now().toString(),
+          id: Date.now().toString(), // ID temporário para o frontend, o backend deve retornar o ID real
           created_date: new Date().toISOString(),
         };
-        const updated = [...existingMovements, newMovement];
-        localStorage.setItem('cash_movements', JSON.stringify(updated));
-        // Tentar salvar no servidor externo
-        try {
-          await externalServer.saveToExternalDatabase('cash_movements', newMovement);
-        } catch (e) {
-          // Fallback já tratado no cliente
-        }
-        return newMovement;
+        // Salvar no servidor SQL
+        const savedMovement = await externalServer.saveToExternalDatabase('cash_movements', newMovement);
+        return savedMovement;
       }
     },
     onSuccess: () => {
-      try {
-        const stored = localStorage.getItem('cash_movements');
-        const data = stored ? JSON.parse(stored) : [];
-        const sorted = data.sort((a: CashMovement, b: CashMovement) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime());
-        queryClient.setQueryData(['cash_movements'], sorted);
-      } catch (e) {
-        console.error('Erro ao ler movimentos do caixa:', e);
-      }
       queryClient.invalidateQueries({ queryKey: ['cash_movements'] });
       toast.success(isEditing ? "Movimentação atualizada!" : "Movimentação registrada!");
       setShowForm(false);
@@ -116,28 +80,12 @@ export default function CashManagement() {
 
   const deleteMovement = useMutation({
     mutationFn: async (ids: string[]) => {
-      const stored = localStorage.getItem('cash_movements');
-      const existingMovements = stored ? JSON.parse(stored) : [];
-      const updated = existingMovements.filter((m: CashMovement) => !ids.includes(m.id));
-      localStorage.setItem('cash_movements', JSON.stringify(updated));
-      // Tentar deletar no servidor externo
+      // Deletar no servidor SQL
       for (const id of ids) {
-        try {
-          await externalServer.deleteFromExternalDatabase('cash_movements', id);
-        } catch (e) {
-          // Fallback já tratado no cliente
-        }
+        await externalServer.deleteFromExternalDatabase('cash_movements', id);
       }
     },
     onSuccess: () => {
-      try {
-        const stored = localStorage.getItem('cash_movements');
-        const data = stored ? JSON.parse(stored) : [];
-        const sorted = data.sort((a: CashMovement, b: CashMovement) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime());
-        queryClient.setQueryData(['cash_movements'], sorted);
-      } catch (e) {
-        console.error('Erro ao atualizar lista após exclusão:', e);
-      }
       queryClient.invalidateQueries({ queryKey: ['cash_movements'] });
       setSelectedItems([]);
       toast.success("Movimentações excluídas!");

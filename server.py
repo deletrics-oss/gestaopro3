@@ -17,8 +17,24 @@ class CashMovement(db.Model):
     value = db.Column(db.Float, nullable=False)
     type = db.Column(db.String(50), nullable=False) # 'entrada' ou 'saida'
     date = db.Column(db.String(50), nullable=False)
-    category = db.Column(db.String(100), nullable=True)
+    category = db.Column(db.String)
+    reason = db.Column(db.String) # Campo 'Motivo' do frontend100), nullable=True)
     # Adicionar outros campos se necessário (ex: user_id, category)
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class Product(db.Model):
+    __tablename__ = 'products'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    cost = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    stock = db.Column(db.Integer, nullable=False)
+    # Novo campo para armazenar os detalhes de custo como JSON (string)
+    cost_details = db.Column(db.Text, nullable=True) 
+    # Adicionar outros campos se necessário (ex: category, supplier)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -52,6 +68,8 @@ def get_entity(entity):
         data = MarketplaceOrder.query.all()
     elif entity == 'users':
         data = User.query.all()
+    elif entity == 'products':
+        data = Product.query.all()
     else:
         return jsonify({'message': 'Entidade não encontrada'}), 404
     
@@ -66,6 +84,8 @@ def create_entity(entity):
         new_item = MarketplaceOrder(order_data=data) # Adapte conforme a estrutura real
     elif entity == 'users':
         new_item = User(**data)
+    elif entity == 'products':
+        new_item = Product(**data)
     else:
         return jsonify({'message': 'Entidade não encontrada'}), 404
     
@@ -81,6 +101,8 @@ def update_entity(entity, id):
         item = MarketplaceOrder.query.get_or_404(id)
     elif entity == 'users':
         item = User.query.get_or_404(id)
+    elif entity == 'products':
+        item = Product.query.get_or_404(id)
     else:
         return jsonify({'message': 'Entidade não encontrada'}), 404
     
@@ -99,6 +121,8 @@ def delete_entity(entity, id):
         item = MarketplaceOrder.query.get_or_404(id)
     elif entity == 'users':
         item = User.query.get_or_404(id)
+    elif entity == 'products':
+        item = Product.query.get_or_404(id)
     else:
         return jsonify({'message': 'Entidade não encontrada'}), 404
     
@@ -129,4 +153,4 @@ if __name__ == '__main__':
     from flask_cors import CORS
     CORS(app)
     
-    app.run(host='0.0.0.0', port=9091)
+    app.run(host='0.0.0.0', port=8089)
