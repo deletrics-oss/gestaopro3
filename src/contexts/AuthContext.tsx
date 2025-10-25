@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { externalServer } from '@/api/externalServer'; // Importar o externalServer
 
 export type Permission = 
   | 'dashboard' 
@@ -24,7 +25,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
   hasPermission: (permission: Permission) => boolean;
@@ -34,45 +35,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Usuários padrão armazenados no localStorage - PERMANENTES
-const DEFAULT_USERS = [
-  { 
-    username: 'admin', 
-    password: 'suporte@1', 
-    role: 'admin' as const,
-    permissions: [] as Permission[], // Admin tem acesso a tudo
-    permanent: true
-  },
-  { 
-    username: 'salvador', 
-    password: 'salvador@1', // atualizado conforme solicitado
-    role: 'admin' as const,
-    permissions: [] as Permission[], // Admin tem acesso a tudo
-    permanent: true
-  }
-];
+// Usuários padrão armazenados no localStorage - REMOVIDO
+// A autenticação agora é feita pelo backend SQL
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // GARANTIR usuários padrão permanentes sempre existam
-    const storedUsers = localStorage.getItem('app_users');
-    let users = storedUsers ? JSON.parse(storedUsers) : [];
-    
-    // Adicionar ou atualizar usuários permanentes
-    DEFAULT_USERS.forEach(defaultUser => {
-      const existingIndex = users.findIndex((u: any) => u.username === defaultUser.username);
-      if (existingIndex === -1) {
-        // Adicionar usuário se não existir
-        users.push(defaultUser);
-      } else {
-        // Atualizar usuário permanente (manter senha e role corretos)
-        users[existingIndex] = { ...users[existingIndex], ...defaultUser };
-      }
-    });
-    
-    localStorage.setItem('app_users', JSON.stringify(users));
-
     // Verificar se há usuário logado
     const storedUser = localStorage.getItem('current_user');
     if (storedUser) {
@@ -80,23 +49,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = (username: string, password: string): boolean => {
-    const users = JSON.parse(localStorage.getItem('app_users') || '[]');
-    const foundUser = users.find(
-      (u: any) => u.username === username && u.password === password
-    );
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      // Simulação: O frontend deve enviar o hash da senha, mas o backend
+      // está simplificado para apenas verificar a existência do usuário por username.
+      // Para o teste, vamos enviar a senha em texto puro para o backend simplificado.
+      const response = await externalServer.login({ username, password_hash: password });
 
-    if (foundUser) {
-      const userData = { 
-        username: foundUser.username, 
-        role: foundUser.role,
-        permissions: foundUser.permissions || []
-      };
-      setUser(userData);
-      localStorage.setItem('current_user', JSON.stringify(userData));
-      return true;
+      if (response && response.user) {
+        const foundUser = response.user;
+        const userData = { 
+          username: foundUser.username, 
+          role: foundUser.role || 'user', // Assumindo 'user' se não vier do backend
+          permissions: foundUser.permissions || []
+        };
+        setUser(userData);
+        localStorage.setItem('current_user', JSON.stringify(userData));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Login failed:", error);
+      return false;
     }
-    return false;
   };
 
   const hasPermission = (permission: Permission): boolean => {
@@ -105,22 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.permissions?.includes(permission) || false;
   };
 
+  // A função changePassword foi removida/simplificada, pois a gestão de usuários
+  // deve ser feita via API do backend.
   const changePassword = (username: string, newPassword: string): boolean => {
-    const users = JSON.parse(localStorage.getItem('app_users') || '[]');
-    const userIndex = users.findIndex((u: any) => u.username === username);
-    
-    if (userIndex === -1) return false;
-    
-    users[userIndex].password = newPassword;
-    localStorage.setItem('app_users', JSON.stringify(users));
-    
-    // Se for o usuário atual, atualizar a sessão
-    if (user?.username === username) {
-      const userData = { ...user };
-      localStorage.setItem('current_user', JSON.stringify(userData));
-    }
-    
-    return true;
+    console.warn("changePassword: A gestão de usuários deve ser feita via API do backend.");
+    return false;
   };
 
   const logout = () => {

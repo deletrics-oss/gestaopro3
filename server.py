@@ -1,5 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
 import os
 
 # Configuração
@@ -7,6 +9,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gestaopro.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+CORS(app) # Habilita CORS para o frontend
 
 # --- Modelos de Dados (Entidades) ---
 
@@ -18,8 +21,7 @@ class CashMovement(db.Model):
     type = db.Column(db.String(50), nullable=False) # 'entrada' ou 'saida'
     date = db.Column(db.String(50), nullable=False)
     category = db.Column(db.String)
-    reason = db.Column(db.String) # Campo 'Motivo' do frontend100), nullable=True)
-    # Adicionar outros campos se necessário (ex: user_id, category)
+    reason = db.Column(db.String) # Campo 'Motivo' do frontend
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -32,9 +34,7 @@ class Product(db.Model):
     cost = db.Column(db.Float, nullable=False)
     price = db.Column(db.Float, nullable=False)
     stock = db.Column(db.Integer, nullable=False)
-    # Novo campo para armazenar os detalhes de custo como JSON (string)
     cost_details = db.Column(db.Text, nullable=True) 
-    # Adicionar outros campos se necessário (ex: category, supplier)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -42,8 +42,7 @@ class Product(db.Model):
 class MarketplaceOrder(db.Model):
     __tablename__ = 'marketplace_orders'
     id = db.Column(db.Integer, primary_key=True)
-    order_data = db.Column(db.Text, nullable=False) # Armazenar JSON como texto
-    # Adicionar outros campos se necessário
+    order_data = db.Column(db.Text, nullable=False) 
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -53,7 +52,6 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
-    # Adicionar outros campos se necessário
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -78,11 +76,18 @@ def get_entity(entity):
 @app.route('/bancoexterno/<entity>', methods=['POST'])
 def create_entity(entity):
     data = request.json
+    
     if entity == 'cash_movements':
         new_item = CashMovement(**data)
     elif entity == 'marketplace_orders':
-        new_item = MarketplaceOrder(order_data=data) # Adapte conforme a estrutura real
+        new_item = MarketplaceOrder(order_data=data) 
     elif entity == 'users':
+        # Antes de criar, verificar se é o usuário de teste e criar se não existir
+        if data.get('username') == 'admin':
+            existing_user = User.query.filter_by(username='admin').first()
+            if existing_user:
+                return jsonify(existing_user.to_dict()), 200 # Já existe, retorna sucesso
+        
         new_item = User(**data)
     elif entity == 'products':
         new_item = Product(**data)
@@ -95,6 +100,8 @@ def create_entity(entity):
 
 @app.route('/bancoexterno/<entity>/<int:id>', methods=['PUT'])
 def update_entity(entity, id):
+    data = request.json
+    
     if entity == 'cash_movements':
         item = CashMovement.query.get_or_404(id)
     elif entity == 'marketplace_orders':
@@ -106,7 +113,6 @@ def update_entity(entity, id):
     else:
         return jsonify({'message': 'Entidade não encontrada'}), 404
     
-    data = request.json
     for key, value in data.items():
         setattr(item, key, value)
         
@@ -130,27 +136,56 @@ def delete_entity(entity, id):
     db.session.commit()
     return '', 204
 
-# --- Rotas de Áudio e Backup (Simulando o servidor externo) ---
+# --- Rotas Específicas ---
 
-@app.route('/audios/<filename>', methods=['GET'])
-def get_audio(filename):
-    # Apenas simula a URL, o frontend deve lidar com o áudio
-    return jsonify({'url': f'/static/audios/{filename}'}) # Assumindo que os áudios serão colocados em static/audios
+@app.route('/bancoexterno/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data.get('username')
+    password_hash = data.get('password_hash')
+    
+    user = User.query.filter_by(username=username).first()
+    
+    # Simulação de verificação de senha
+    if user and user.password_hash == password_hash:
+        return jsonify({'message': 'Login bem-sucedido', 'user': user.to_dict()}), 200
+    else:
+        return jsonify({'message': 'Usuário ou senha inválidos'}), 401
 
-@app.route('/bancoexterno/backups/<timestamp>', methods=['POST'])
-def create_backup(timestamp):
-    # Apenas simula o recebimento do backup
-    print(f"Backup recebido para {timestamp}: {request.json}")
-    return jsonify({'message': 'Backup recebido com sucesso'}), 201
+@app.route('/bancoexterno/upload_audio', methods=['POST'])
+def upload_audio():
+    if 'audio' not in request.files:
+        return jsonify({'message': 'Nenhum arquivo de áudio enviado'}), 400
+    
+    audio_file = request.files['audio']
+    if audio_file.filename == '':
+        return jsonify({'message': 'Nenhum arquivo selecionado'}), 400
+    
+    upload_folder = os.path.join(os.getcwd(), 'uploads')
+    os.makedirs(upload_folder, exist_ok=True)
+    
+    filename = secure_filename(audio_file.filename)
+    filepath = os.path.join(upload_folder, filename)
+    audio_file.save(filepath)
+    
+    # Retorna a URL completa para o frontend
+    return jsonify({'url': f'http://localhost:8089/uploads/{filename}'}), 201
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    upload_folder = os.path.join(os.getcwd(), 'uploads')
+    return send_from_directory(upload_folder, filename)
 
 # --- Inicialização ---
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all() # Cria as tabelas se não existirem
-    
-    # Adicionar cabeçalhos CORS para permitir comunicação com o frontend Vite
-    from flask_cors import CORS
-    CORS(app)
+        
+        # Cria o usuário 'admin' se não existir para o teste
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            db.session.add(User(username='admin', password_hash='suporte@1'))
+            db.session.commit()
     
     app.run(host='0.0.0.0', port=8089)

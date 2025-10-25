@@ -1,5 +1,5 @@
 // Cliente para servidor HTTP externo
-const EXTERNAL_SERVER_BASE = 'http://localhost:9091';
+const EXTERNAL_SERVER_BASE = 'http://localhost:8089';
 const AUDIO_PATH = `${EXTERNAL_SERVER_BASE}/audios`;
 const DATABASE_PATH = `${EXTERNAL_SERVER_BASE}/bancoexterno`;
 
@@ -24,16 +24,36 @@ class ExternalServerClient {
 
   // Buscar áudio do servidor (sem HEAD para evitar bloqueio mixed-content/CORS)
   async getAudio(audioName: string): Promise<string> {
-    // Retorna diretamente a URL do servidor
-    return `${AUDIO_PATH}/${audioName}`;
+    // Retorna a URL do servidor para o frontend buscar o áudio
+    return `${EXTERNAL_SERVER_BASE}/uploads/${audioName}`;
   }
 
-  // Lista todos os áudios disponíveis
+  // Lista todos os áudios disponíveis - Não é mais necessário, pois a lista de áudios
+  // não é fixa e deve ser gerenciada pelo backend, se necessário.
   getAvailableAudios(): AudioFile[] {
-    return this.audioFiles.map(name => ({
-      name: name.replace('.mp3', ''),
-      url: `${AUDIO_PATH}/${name}`
-    }));
+    return [];
+  }
+
+  // Novo: Fazer upload de arquivo de áudio
+  async uploadAudio(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    try {
+      const response = await fetch(`${DATABASE_PATH}/upload_audio`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao fazer upload do áudio: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao fazer upload do áudio:', error);
+      throw new Error('Falha ao fazer upload do arquivo de áudio para o servidor SQL.');
+    }
   }
 
   // Salvar dados no banco externo
@@ -54,13 +74,7 @@ class ExternalServerClient {
       return await response.json();
     } catch (error) {
       console.error('Erro ao salvar no banco externo:', error);
-      // Fallback para localStorage se servidor não estiver disponível
-      const key = `external_${entityName}`;
-      const stored = localStorage.getItem(key);
-      const items = stored ? JSON.parse(stored) : [];
-      items.push({ ...data, id: data?.id || Date.now().toString(), synced: false });
-      localStorage.setItem(key, JSON.stringify(items));
-      return data;
+      throw new Error('Falha ao salvar no banco de dados SQL.');
     }
   }
 
@@ -76,10 +90,7 @@ class ExternalServerClient {
       return await response.json();
     } catch (error) {
       console.error('Erro ao buscar do banco externo:', error);
-      // Fallback para localStorage se servidor não estiver disponível
-      const key = `external_${entityName}`;
-      const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored) : [];
+      throw new Error('Falha ao buscar do banco de dados SQL.');
     }
   }
 
@@ -101,15 +112,7 @@ class ExternalServerClient {
       return await response.json();
     } catch (error) {
       console.error('Erro ao atualizar no banco externo:', error);
-      // Fallback para localStorage
-      const key = `external_${entityName}`;
-      const stored = localStorage.getItem(key);
-      const items = stored ? JSON.parse(stored) : [];
-      const updated = items.map((item: any) => 
-        item.id === id ? { ...item, ...data, synced: false } : item
-      );
-      localStorage.setItem(key, JSON.stringify(updated));
-      return data;
+      throw new Error('Falha ao atualizar no banco de dados SQL.');
     }
   }
 
@@ -125,76 +128,41 @@ class ExternalServerClient {
       }
     } catch (error) {
       console.error('Erro ao deletar do banco externo:', error);
-      // Fallback para localStorage
-      const key = `external_${entityName}`;
-      const stored = localStorage.getItem(key);
-      const items = stored ? JSON.parse(stored) : [];
-      const filtered = items.filter((item: any) => item.id !== id);
-      localStorage.setItem(key, JSON.stringify(filtered));
+      throw new Error('Falha ao deletar do banco de dados SQL.');
     }
   }
 
-  // Criar backup no servidor
-  async createBackup(): Promise<void> {
-    const timestamp = new Date().toISOString().split('T')[0];
-    const backupData = {
-      timestamp,
-      users: localStorage.getItem('app_users'),
-      cash_movements: localStorage.getItem('cash_movements'),
-      marketplace_orders: localStorage.getItem('marketplace_orders'),
-      products_meta: localStorage.getItem('products_meta'),
-      settings: {
-        alert_mode: localStorage.getItem('alert_mode'),
-        marketplace_mode: localStorage.getItem('marketplace_mode'),
-      }
-    };
-
+  // Novo: Rota de Login
+  async login(credentials: { username: string; password_hash: string }): Promise<any> {
     try {
-      const response = await fetch(`${DATABASE_PATH}/backups/${timestamp}`, {
+      const response = await fetch(`${DATABASE_PATH}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(backupData)
+        body: JSON.stringify(credentials)
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao criar backup no servidor');
+        // Lançar erro para ser capturado no AuthContext
+        throw new Error('Credenciais inválidas');
       }
 
-      console.log('Backup criado com sucesso:', timestamp);
+      return await response.json();
     } catch (error) {
-      console.error('Erro ao criar backup:', error);
-      // Salvar backup localmente como fallback
-      const backupKey = `backup_${timestamp}`;
-      localStorage.setItem(backupKey, JSON.stringify(backupData));
+      console.error('Erro durante o login:', error);
+      throw error;
     }
   }
 
-  // Sincronizar dados não sincronizados
+  // O backup e a sincronização não são mais necessários, pois o sistema
+  // agora depende apenas do backend SQL.
+  async createBackup(): Promise<void> {
+    console.warn("Backup via localStorage desativado. O sistema usa o backend SQL.");
+  }
+
   async syncPendingData(): Promise<void> {
-    const entities = ['cash_movements', 'users', 'marketplace_orders'];
-    
-    for (const entity of entities) {
-      const key = `external_${entity}`;
-      const stored = localStorage.getItem(key);
-      if (!stored) continue;
-
-      const items = JSON.parse(stored);
-      const pending = items.filter((item: any) => item.synced === false);
-
-      for (const item of pending) {
-        try {
-          await this.saveToExternalDatabase(entity, item);
-          // Marcar como sincronizado
-          item.synced = true;
-        } catch (error) {
-          console.error(`Erro ao sincronizar ${entity}:`, error);
-        }
-      }
-
-      localStorage.setItem(key, JSON.stringify(items));
-    }
+    console.warn("Sincronização via localStorage desativada. O sistema usa o backend SQL.");
   }
 }
 
