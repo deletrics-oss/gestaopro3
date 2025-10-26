@@ -239,6 +239,16 @@ def uploaded_file(filename):
     upload_folder = os.path.join(os.getcwd(), 'uploads')
     return send_from_directory(upload_folder, filename)
 
+# --- Rota para servir o Frontend (index.html e arquivos estáticos) ---
+
+@app.route('/')
+def index():
+    return send_from_directory('public', 'index.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    return send_from_directory('public', filename)
+
 # --- Inicialização ---
 
 if __name__ == '__main__':
@@ -251,4 +261,4 @@ if __name__ == '__main__':
             db.session.add(User(username='admin', password_hash='suporte@1'))
             db.session.commit()
     
-    app.run(host='0.0.0.0', port=8089)
+    app.run(host='0.0.0.0', port=9090)
