@@ -9,7 +9,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gestaopro.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-CORS(app) # Habilita CORS para o frontend
+CORS(app, resources={r"/*": {"origins": ["http://localhost:9090", "http://72.60.246.250:9090", "https://72.60.246.250:9090"]}}) # Habilita CORS para o frontend na porta 9090
 
 # --- Modelos de Dados (Entidades) ---
 
