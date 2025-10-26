@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migração de Dados - GestaoPro2</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-left: 4px solid #2196F3;
+            margin: 20px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .danger {
+            background: #f44336;
+        }
+        .danger:hover {
+            background: #da190b;
+        }
+        #log {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-success { color: #4CAF50; }
+        .log-error { color: #f44336; }
+        .log-info { color: #2196F3; }
+        .step {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .step-title {
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Migração de Dados - GestaoPro2</h1>
+        
+        <div class="info">
+            <strong>📋 O que este script faz:</strong>
+            <ul>
+                <li>Lê todos os dados do localStorage do navegador</li>
+                <li>Envia para o banco de dados SQLite do servidor</li>
+                <li>Preserva usuários, movimentações de caixa, produtos e pedidos</li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <strong>⚠️ IMPORTANTE:</strong>
+            <ul>
+                <li>Certifique-se de que o servidor está rodando em <code>http://localhost:8089</code></li>
+                <li>Execute este script ANTES de atualizar os arquivos corrigidos</li>
+                <li>Faça backup do localStorage antes (Export nas configurações)</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passo 1: Verificar Servidor</div>
+            <button onclick="checkServer()">Verificar Conexão com Servidor</button>
+            <span id="serverStatus"></span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passo 2: Analisar Dados Locais</div>
+            <button onclick="analyzeData()">Analisar localStorage</button>
+            <div id="dataAnalysis"></div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passo 3: Migrar Dados</div>
+            <button onclick="migrateData()" id="migrateBtn">🚀 Iniciar Migração</button>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Passo 4: Limpar localStorage (Opcional)</div>
+            <button onclick="clearLocalStorage()" class="danger">🗑️ Limpar localStorage</button>
+            <small style="display: block; margin-top: 5px; color: #666;">
+                Execute apenas APÓS confirmar que os dados foram migrados com sucesso
+            </small>
+        </div>
+
+        <h3>📝 Log de Migração:</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8089/bancoexterno';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = `log-${type}`;
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        async function checkServer() {
+            const statusSpan = document.getElementById('serverStatus');
+            statusSpan.textContent = ' Verificando...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/users`);
+                if (response.ok) {
+                    statusSpan.textContent = ' ✅ Servidor OK';
+                    statusSpan.style.color = '#4CAF50';
+                    log('Servidor conectado com sucesso!', 'success');
+                    return true;
+                } else {
+                    throw new Error('Servidor retornou erro');
+                }
+            } catch (error) {
+                statusSpan.textContent = ' ❌ Servidor offline';
+                statusSpan.style.color = '#f44336';
+                log('Erro ao conectar com servidor: ' + error.message, 'error');
+                return false;
+            }
+        }
+
+        function analyzeData() {
+            const analysisDiv = document.getElementById('dataAnalysis');
+            
+            const users = JSON.parse(localStorage.getItem('app_users') || '[]');
+            const cashMovements = JSON.parse(localStorage.getItem('cash_movements') || '[]');
+            const products = JSON.parse(localStorage.getItem('products') || '[]');
+            const orders = JSON.parse(localStorage.getItem('marketplace_orders') || '[]');
+            
+            const html = `
+                <div style="margin-top: 10px; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 5px;">
+                    <strong>Dados encontrados:</strong>
+                    <ul>
+                        <li>👥 Usuários: ${users.length}</li>
+                        <li>💰 Movimentações de Caixa: ${cashMovements.length}</li>
+                        <li>📦 Produtos: ${products.length}</li>
+                        <li>🛒 Pedidos de Marketplace: ${orders.length}</li>
+                    </ul>
+                </div>
+            `;
+            
+            analysisDiv.innerHTML = html;
+            log(`Análise concluída: ${users.length} usuários, ${cashMovements.length} movimentações, ${products.length} produtos, ${orders.length} pedidos`, 'info');
+        }
+
+        async function migrateData() {
+            const btn = document.getElementById('migrateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Migrando...';
+            
+            log('=== INICIANDO MIGRAÇÃO ===', 'info');
+            
+            try {
+                // Verificar servidor primeiro
+                const serverOk = await checkServer();
+                if (!serverOk) {
+                    throw new Error('Servidor não está acessível');
+                }
+
+                // Migrar Usuários
+                log('Migrando usuários...', 'info');
+                const users = JSON.parse(localStorage.getItem('app_users') || '[]');
+                for (const user of users) {
+                    try {
+                        const response = await fetch(`${API_BASE}/users`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: user.username,
+                                password_hash: user.password,
+                                role: user.role,
+                                permissions: JSON.stringify(user.permissions || [])
+                            })
+                        });
+                        if (response.ok) {
+                            log(`✓ Usuário migrado: ${user.username}`, 'success');
+                        } else {
+                            log(`✗ Erro ao migrar usuário ${user.username}: ${response.statusText}`, 'error');
+                        }
+                    } catch (error) {
+                        log(`✗ Erro ao migrar usuário ${user.username}: ${error.message}`, 'error');
+                    }
+                }
+
+                // Migrar Movimentações de Caixa
+                log('Migrando movimentações de caixa...', 'info');
+                const cashMovements = JSON.parse(localStorage.getItem('cash_movements') || '[]');
+                for (const movement of cashMovements) {
+                    try {
+                        const response = await fetch(`${API_BASE}/cash_movements`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(movement)
+                        });
+                        if (response.ok) {
+                            log(`✓ Movimentação migrada: ${movement.description}`, 'success');
+                        } else {
+                            log(`✗ Erro ao migrar movimentação: ${response.statusText}`, 'error');
+                        }
+                    } catch (error) {
+                        log(`✗ Erro ao migrar movimentação: ${error.message}`, 'error');
+                    }
+                }
+
+                // Migrar Produtos
+                log('Migrando produtos...', 'info');
+                const products = JSON.parse(localStorage.getItem('products') || '[]');
+                for (const product of products) {
+                    try {
+                        const response = await fetch(`${API_BASE}/products`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(product)
+                        });
+                        if (response.ok) {
+                            log(`✓ Produto migrado: ${product.name}`, 'success');
+                        } else {
+                            log(`✗ Erro ao migrar produto ${product.name}: ${response.statusText}`, 'error');
+                        }
+                    } catch (error) {
+                        log(`✗ Erro ao migrar produto: ${error.message}`, 'error');
+                    }
+                }
+
+                // Migrar Pedidos de Marketplace
+                log('Migrando pedidos de marketplace...', 'info');
+                const orders = JSON.parse(localStorage.getItem('marketplace_orders') || '[]');
+                for (const order of orders) {
+                    try {
+                        const response = await fetch(`${API_BASE}/marketplace_orders`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                order_data: JSON.stringify(order)
+                            })
+                        });
+                        if (response.ok) {
+                            log(`✓ Pedido migrado: ${order.id || 'sem ID'}`, 'success');
+                        } else {
+                            log(`✗ Erro ao migrar pedido: ${response.statusText}`, 'error');
+                        }
+                    } catch (error) {
+                        log(`✗ Erro ao migrar pedido: ${error.message}`, 'error');
+                    }
+                }
+
+                log('=== MIGRAÇÃO CONCLUÍDA ===', 'success');
+                alert('✅ Migração concluída! Verifique o log para detalhes.');
+                
+            } catch (error) {
+                log(`ERRO CRÍTICO: ${error.message}`, 'error');
+                alert('❌ Erro durante a migração. Verifique o log.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Iniciar Migração';
+            }
+        }
+
+        function clearLocalStorage() {
+            if (!confirm('⚠️ ATENÇÃO: Isso irá apagar TODOS os dados do localStorage!\n\nCertifique-se de que a migração foi bem-sucedida antes de continuar.\n\nDeseja continuar?')) {
+                return;
+            }
+
+            if (!confirm('🚨 ÚLTIMA CONFIRMAÇÃO: Os dados serão perdidos permanentemente!\n\nTem certeza?')) {
+                return;
+            }
+
+            // Limpar apenas as chaves relacionadas ao projeto
+            const keysToRemove = [
+                'app_users',
+                'cash_movements',
+                'products',
+                'marketplace_orders',
+                'current_user'
+            ];
+
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                log(`Removido: ${key}`, 'info');
+            });
+
+            log('localStorage limpo com sucesso!', 'success');
+            alert('✅ localStorage limpo! Recarregue a página.');
+        }
+
+        // Verificar servidor ao carregar a página
+        window.onload = () => {
+            log('Script de migração carregado', 'info');
+            log('Pronto para iniciar migração', 'info');
+        };
+    </script>
+</body>
+</html>
+

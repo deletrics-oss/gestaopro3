@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { externalServer } from '@/api/externalServer'; // Importar o externalServer
+import { createContext, useContext, useState, ReactNode } from 'react';
+import { externalServer } from '@/api/externalServer';
 
 export type Permission = 
   | 'dashboard' 
@@ -34,37 +34,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Usuários padrão armazenados no localStorage - PERMANENTES
-// Usuários padrão armazenados no localStorage - REMOVIDO
-// A autenticação agora é feita pelo backend SQL
+// CORREÇÃO: Removido localStorage - A autenticação agora é feita 100% pelo backend SQL
+// O estado do usuário é mantido apenas na sessão do navegador (memória)
+// Para persistência entre recarregamentos, considere implementar JWT tokens ou sessões no backend
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    // Verificar se há usuário logado
-    const storedUser = localStorage.getItem('current_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+  // REMOVIDO: useEffect que buscava usuário do localStorage
+  // Se precisar de persistência de sessão, implemente JWT no backend
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      // Simulação: O frontend deve enviar o hash da senha, mas o backend
-      // está simplificado para apenas verificar a existência do usuário por username.
-      // Para o teste, vamos enviar a senha em texto puro para o backend simplificado.
+      // Envia credenciais para o backend SQL
       const response = await externalServer.login({ username, password_hash: password });
 
       if (response && response.user) {
         const foundUser = response.user;
         const userData = { 
           username: foundUser.username, 
-          role: foundUser.role || 'user', // Assumindo 'user' se não vier do backend
+          role: foundUser.role || 'user',
           permissions: foundUser.permissions || []
         };
         setUser(userData);
-        localStorage.setItem('current_user', JSON.stringify(userData));
+        // REMOVIDO: localStorage.setItem('current_user', JSON.stringify(userData));
         return true;
       }
       return false;
@@ -80,16 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.permissions?.includes(permission) || false;
   };
 
-  // A função changePassword foi removida/simplificada, pois a gestão de usuários
-  // deve ser feita via API do backend.
   const changePassword = (username: string, newPassword: string): boolean => {
     console.warn("changePassword: A gestão de usuários deve ser feita via API do backend.");
+    // TODO: Implementar endpoint no backend para mudança de senha
     return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('current_user');
+    // REMOVIDO: localStorage.removeItem('current_user');
   };
 
   return (
@@ -106,3 +98,4 @@ export function useAuth() {
   }
   return context;
 }
+
