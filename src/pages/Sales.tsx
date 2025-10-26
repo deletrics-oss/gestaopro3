@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { externalServer } from "@/api/externalServer";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,7 +19,7 @@ export default function Sales() {
   const { data: sales = [] } = useQuery({
     queryKey: ['sales'],
     queryFn: async () => {
-      const data = await base44.entities.Sale.list();
+      const data = await externalServer.getFromExternalDatabase('sales');
       // Ordenar localmente por data de criação (mais recente primeiro)
       return data.sort((a: any, b: any) => {
         const dateA = new Date(a.created_date || a.sale_date).getTime();
@@ -31,7 +31,7 @@ export default function Sales() {
 
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
-    queryFn: () => base44.entities.Product.list(),
+    queryFn: () => externalServer.getFromExternalDatabase('products'),
   });
 
   const createMutation = useMutation({
@@ -40,12 +40,12 @@ export default function Sales() {
       const product = products.find((p: any) => p.id === data.product_id);
       if (product) {
         const newStock = (product.stock_quantity || 0) - data.quantity;
-        await base44.entities.Product.update(product.id, {
+        await externalServer.updateInExternalDatabase('products', product.id, {
           ...product,
           stock_quantity: newStock
         });
       }
-      return base44.entities.Sale.create(data);
+      return externalServer.saveToExternalDatabase('sales', data);
     },
     onSuccess: (response) => {
       console.log('Venda criada com sucesso:', response);
@@ -60,7 +60,7 @@ export default function Sales() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => base44.entities.Sale.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: any }) => externalServer.updateInExternalDatabase('sales', id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       setEditingSale(null);
@@ -72,7 +72,7 @@ export default function Sales() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => base44.entities.Sale.delete(id),
+    mutationFn: (id: string) => externalServer.deleteFromExternalDatabase('sales', id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       toast.success("Venda excluída com sucesso!");
@@ -84,7 +84,7 @@ export default function Sales() {
 
   const deleteSelectedMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map(id => base44.entities.Sale.delete(id)));
+      await Promise.all(ids.map(id => externalServer.deleteFromExternalDatabase('sales', id)));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });

@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { externalServer } from "@/api/externalServer";
 
 interface CashMovement {
-  id: string;
+  id: number;
   type: 'entrada' | 'saida';
   value: number;
   category: string;
@@ -28,7 +28,7 @@ export default function CashManagement() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [movementType, setMovementType] = useState<'entrada' | 'saida'>('entrada');
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [formData, setFormData] = useState({
@@ -55,18 +55,13 @@ export default function CashManagement() {
 
   const createMovement = useMutation({
     mutationFn: async (data: Omit<CashMovement, 'id' | 'created_date'>) => {
-      if (isEditing && editingId) {
-        // Atualizar no servidor SQL
-        const updatedMovement = await externalServer.updateInExternalDatabase('cash_movements', editingId, data);
-        return updatedMovement;
-      } else {
-        const newMovement: CashMovement = {
-          ...data,
-          id: Date.now().toString(), // ID temporário para o frontend, o backend deve retornar o ID real
-          created_date: new Date().toISOString(),
-        };
+	    if (isEditing && editingId) {
+	      // Atualizar no servidor SQL
+	      const updatedMovement = await externalServer.updateInExternalDatabase('cash_movements', editingId.toString(), data);
+	      return updatedMovement;
+	    } else {
         // Salvar no servidor SQL
-        const savedMovement = await externalServer.saveToExternalDatabase('cash_movements', newMovement);
+        const savedMovement = await externalServer.saveToExternalDatabase('cash_movements', data);
         return savedMovement;
       }
     },
@@ -78,13 +73,13 @@ export default function CashManagement() {
     },
   });
 
-  const deleteMovement = useMutation({
-    mutationFn: async (ids: string[]) => {
-      // Deletar no servidor SQL
-      for (const id of ids) {
-        await externalServer.deleteFromExternalDatabase('cash_movements', id);
-      }
-    },
+	  const deleteMovement = useMutation({
+	    mutationFn: async (ids: number[]) => {
+	      // Deletar no servidor SQL
+	      for (const id of ids) {
+	        await externalServer.deleteFromExternalDatabase('cash_movements', id.toString());
+	      }
+	    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cash_movements'] });
       setSelectedItems([]);
@@ -106,7 +101,7 @@ export default function CashManagement() {
     setEditingId(null);
   };
 
-  const handleEdit = (movement: CashMovement) => {
+	  const handleEdit = (movement: CashMovement) => {
     setFormData({
       value: movement.value,
       category: movement.category,
@@ -117,7 +112,7 @@ export default function CashManagement() {
     });
     setMovementType(movement.type);
     setIsEditing(true);
-    setEditingId(movement.id);
+	    setEditingId(movement.id as number);
     setShowForm(true);
   };
 
@@ -133,31 +128,34 @@ export default function CashManagement() {
     });
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedItems(movements.map((m: CashMovement) => m.id));
-    } else {
-      setSelectedItems([]);
-    }
-  };
+	  const handleSelectAll = (checked: boolean) => {
+	    if (checked) {
+	      setSelectedItems(movements.map((m: CashMovement) => m.id.toString()));
+	    } else {
+	      setSelectedItems([]);
+	    }
+	  };
 
-  const handleSelectItem = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedItems([...selectedItems, id]);
-    } else {
-      setSelectedItems(selectedItems.filter(i => i !== id));
-    }
-  };
+	  const handleSelectItem = (id: number, checked: boolean) => {
+	    const idStr = id.toString();
+	    if (checked) {
+	      setSelectedItems([...selectedItems, idStr]);
+	    } else {
+	      setSelectedItems(selectedItems.filter(i => i !== idStr));
+	    }
+	  };
 
-  const handleDeleteSelected = () => {
-    if (selectedItems.length === 0) {
-      toast.error("Selecione pelo menos uma movimentação");
-      return;
-    }
-    if (confirm(`Deseja realmente excluir ${selectedItems.length} movimentação(ões)?`)) {
-      deleteMovement.mutate(selectedItems);
-    }
-  };
+	  const handleDeleteSelected = () => {
+	    if (selectedItems.length === 0) {
+	      toast.error("Selecione pelo menos uma movimentação");
+	      return;
+	    }
+	    if (confirm(`Deseja realmente excluir ${selectedItems.length} movimentação(ões)?`)) {
+	      // Mapear para number antes de enviar para o backend
+	      const idsToDelete = selectedItems.map(id => parseInt(id, 10));
+	      deleteMovement.mutate(idsToDelete);
+	    }
+	  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

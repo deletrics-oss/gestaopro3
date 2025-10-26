@@ -22,9 +22,17 @@ class CashMovement(db.Model):
     date = db.Column(db.String(50), nullable=False)
     category = db.Column(db.String)
     reason = db.Column(db.String) # Campo 'Motivo' do frontend
+    created_date = db.Column(db.DateTime, default=db.func.now())
+    updated_date = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # Converter datetime para string para JSON
+        if data.get('created_date'):
+            data['created_date'] = data['created_date'].isoformat()
+        if data.get('updated_date'):
+            data['updated_date'] = data['updated_date'].isoformat()
+        return data
 
 class Product(db.Model):
     __tablename__ = 'products'
@@ -34,27 +42,74 @@ class Product(db.Model):
     cost = db.Column(db.Float, nullable=False)
     price = db.Column(db.Float, nullable=False)
     stock = db.Column(db.Integer, nullable=False)
+    created_date = db.Column(db.DateTime, default=db.func.now())
+    updated_date = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
     cost_details = db.Column(db.Text, nullable=True) 
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # Converter datetime para string para JSON
+        if data.get('created_date'):
+            data['created_date'] = data['created_date'].isoformat()
+        if data.get('updated_date'):
+            data['updated_date'] = data['updated_date'].isoformat()
+        return data
+
+class Sale(db.Model):
+    __tablename__ = 'sales'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, nullable=False)
+    product_name = db.Column(db.String(255), nullable=False)
+    customer_name = db.Column(db.String(255), nullable=True)
+    quantity = db.Column(db.Integer, nullable=False)
+    sale_date = db.Column(db.String(50), nullable=False)
+    total_revenue = db.Column(db.Float, nullable=False)
+    total_cost = db.Column(db.Float, nullable=False)
+    total_profit = db.Column(db.Float, nullable=False)
+    created_date = db.Column(db.DateTime, default=db.func.now())
+    updated_date = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+
+    def to_dict(self):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # Converter datetime para string para JSON
+        if data.get('created_date'):
+            data['created_date'] = data['created_date'].isoformat()
+        if data.get('updated_date'):
+            data['updated_date'] = data['updated_date'].isoformat()
+        return data
 
 class MarketplaceOrder(db.Model):
     __tablename__ = 'marketplace_orders'
     id = db.Column(db.Integer, primary_key=True)
     order_data = db.Column(db.Text, nullable=False) 
+    created_date = db.Column(db.DateTime, default=db.func.now())
+    updated_date = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # Converter datetime para string para JSON
+        if data.get('created_date'):
+            data['created_date'] = data['created_date'].isoformat()
+        if data.get('updated_date'):
+            data['updated_date'] = data['updated_date'].isoformat()
+        return data
 
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
+    created_date = db.Column(db.DateTime, default=db.func.now())
+    updated_date = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # Converter datetime para string para JSON
+        if data.get('created_date'):
+            data['created_date'] = data['created_date'].isoformat()
+        if data.get('updated_date'):
+            data['updated_date'] = data['updated_date'].isoformat()
+        return data
 
 # --- Rotas da API (Simulando o bancoexterno) ---
 
@@ -62,6 +117,8 @@ class User(db.Model):
 def get_entity(entity):
     if entity == 'cash_movements':
         data = CashMovement.query.all()
+    elif entity == 'sales':
+        data = Sale.query.all()
     elif entity == 'marketplace_orders':
         data = MarketplaceOrder.query.all()
     elif entity == 'users':
@@ -79,6 +136,8 @@ def create_entity(entity):
     
     if entity == 'cash_movements':
         new_item = CashMovement(**data)
+    elif entity == 'sales':
+        new_item = Sale(**data)
     elif entity == 'marketplace_orders':
         new_item = MarketplaceOrder(order_data=data) 
     elif entity == 'users':
@@ -104,6 +163,8 @@ def update_entity(entity, id):
     
     if entity == 'cash_movements':
         item = CashMovement.query.get_or_404(id)
+    elif entity == 'sales':
+        item = Sale.query.get_or_404(id)
     elif entity == 'marketplace_orders':
         item = MarketplaceOrder.query.get_or_404(id)
     elif entity == 'users':
@@ -123,6 +184,8 @@ def update_entity(entity, id):
 def delete_entity(entity, id):
     if entity == 'cash_movements':
         item = CashMovement.query.get_or_404(id)
+    elif entity == 'sales':
+        item = Sale.query.get_or_404(id)
     elif entity == 'marketplace_orders':
         item = MarketplaceOrder.query.get_or_404(id)
     elif entity == 'users':
