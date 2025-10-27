@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { externalServer } from '@/api/externalServer';
 
 export type Permission = 
@@ -34,16 +34,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// MODIFICAÇÃO: Lógica de login com fallback para senha padrão
+// SOLUÇÃO DE BYPASS: Força o login para o usuário 'admin' com a senha '123456'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    // Tenta carregar usuário do localStorage (se houver)
+    const storedUser = localStorage.getItem('current_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     const DEFAULT_ADMIN_PASSWORD = "123456"; // Senha padrão para fallback - Altere no seu ambiente!
     const DEFAULT_ADMIN_USER = "admin";
 
+    // 1. Tenta o login normal no backend
     try {
-      // 1. Tenta o login normal no backend
       const response = await externalServer.login({ username, password_hash: password });
 
       if (response && response.user) {
@@ -54,39 +62,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           permissions: foundUser.permissions || []
         };
         setUser(userData);
+        localStorage.setItem('current_user', JSON.stringify(userData));
         return true;
       }
-      
-      // 2. Fallback: Se o login normal falhar e for o usuário admin com a senha padrão
-      if (username === DEFAULT_ADMIN_USER && password === DEFAULT_ADMIN_PASSWORD) {
-        console.warn("Login falhou, usando fallback de senha padrão para admin.");
-        const userData = { 
-          username: DEFAULT_ADMIN_USER, 
-          role: 'admin' as const,
-          permissions: []
-        };
-        setUser(userData);
-        return true;
-      }
-
-      return false;
     } catch (error) {
-      console.error("Login failed:", error);
-
-      // 3. Fallback em caso de erro de comunicação (CORS, etc.)
-      if (username === DEFAULT_ADMIN_USER && password === DEFAULT_ADMIN_PASSWORD) {
-        console.warn("Erro de comunicação, usando fallback de senha padrão para admin.");
-        const userData = { 
-          username: DEFAULT_ADMIN_USER, 
-          role: 'admin' as const,
-          permissions: []
-        };
-        setUser(userData);
-        return true;
-      }
-
-      return false;
+      console.error("Login failed (Backend communication error):", error);
     }
+    
+    // 2. Fallback: Se o login normal falhar, tenta com a senha padrão
+    if (username === DEFAULT_ADMIN_USER && password === DEFAULT_ADMIN_PASSWORD) {
+      console.warn("Login falhou, usando fallback de senha padrão para admin.");
+      const userData = { 
+        username: DEFAULT_ADMIN_USER, 
+        role: 'admin' as const,
+        permissions: []
+      };
+      setUser(userData);
+      localStorage.setItem('current_user', JSON.stringify(userData));
+      return true;
+    }
+
+    return false;
   };
 
   const hasPermission = (permission: Permission): boolean => {
@@ -101,9 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
-  // A função de logout é desativada para manter o usuário logado.
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('current_user');
   };
 
   return (
