@@ -6,24 +6,24 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
-import { Lock, User, UserPlus } from 'lucide-react';
+import { Lock, User, KeyRound, RotateCcw } from 'lucide-react';
 
 export default function Login() {
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const { login, register } = useAuth();
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('123456'); // Senha padrão para acesso rápido
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleForgotPassword = () => {
+  const handlePasswordAction = (action: 'change' | 'reset') => {
+    const title = action === 'change' ? "Trocar Senha" : "Resetar Senha";
     toast({
-      title: "Recuperação de Senha",
-      description: "A funcionalidade de recuperação de senha ainda não está implementada. Por favor, entre em contato com o suporte.",
+      title: title,
+      description: "A funcionalidade de " + title.toLowerCase() + " ainda não está implementada. Por favor, entre em contato com o suporte.",
       variant: "default",
     });
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const success = await login(username, password);
@@ -37,54 +37,7 @@ export default function Login() {
     } else {
       toast({
         title: "Erro ao fazer login",
-        description: "Usuário ou senha incorretos.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!register) {
-      toast({
-        title: "Erro de Cadastro",
-        description: "A funcionalidade de registro não está disponível.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const success = await register(username, password);
-
-    if (success) {
-      toast({
-        title: "Cadastro realizado com sucesso!",
-        description: "Você foi logado automaticamente.",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Erro ao cadastrar",
-        description: "Não foi possível criar o usuário. Tente novamente ou use outro nome de usuário.",
-        variant: "destructive",
-      });
-    }
-  };
-    e.preventDefault();
-    
-    const success = await login(username, password);
-
-    if (success) {
-      toast({
-        title: "Login realizado com sucesso!",
-        description: "Bem-vindo de volta.",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Erro ao fazer login",
-        description: "Usuário ou senha incorretos.",
+        description: "Usuário ou senha incorretos. (Lembre-se que a senha padrão é 123456)",
         variant: "destructive",
       });
     }
@@ -105,11 +58,11 @@ export default function Login() {
           </div>
           <CardTitle className="text-3xl font-bold">Sistema de Gestão</CardTitle>
           <p className="text-muted-foreground">
-            {isRegistering ? "Crie sua conta" : "Faça login para continuar"}
+            Faça login para continuar
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Usuário</Label>
               <div className="relative">
@@ -140,31 +93,28 @@ export default function Login() {
                 />
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-between text-sm">
               <Button
                 variant="link"
                 type="button"
-                onClick={handleForgotPassword}
-                className="p-0 h-auto text-sm text-muted-foreground hover:text-primary"
+                onClick={() => handlePasswordAction('change')}
+                className="p-0 h-auto text-sm text-muted-foreground hover:text-primary flex items-center"
               >
-                Esqueci minha senha
+                <KeyRound className="w-4 h-4 mr-1" /> Trocar Senha
+              </Button>
+              <Button
+                variant="link"
+                type="button"
+                onClick={() => handlePasswordAction('reset')}
+                className="p-0 h-auto text-sm text-muted-foreground hover:text-primary flex items-center"
+              >
+                <RotateCcw className="w-4 h-4 mr-1" /> Resetar Senha
               </Button>
             </div>
             <Button type="submit" className="w-full">
-              {isRegistering ? "Cadastrar e Entrar" : "Entrar"}
+              Entrar
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <Button
-              variant="link"
-              type="button"
-              onClick={() => setIsRegistering(!isRegistering)}
-            >
-              {isRegistering
-                ? "Já tem uma conta? Faça login"
-                : "Não tem uma conta? Cadastre-se"}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
