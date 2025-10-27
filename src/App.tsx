@@ -8,7 +8,7 @@ import { SoundAlertProvider } from "./contexts/SoundAlertContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionRoute from "./components/PermissionRoute";
 import Layout from "./components/Layout";
-// import Login from "./pages/Login"; // Removido para garantir que o componente não seja usado
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
