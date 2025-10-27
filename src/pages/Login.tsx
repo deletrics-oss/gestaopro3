@@ -15,6 +15,14 @@ export default function Login() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
 
+  const handleForgotPassword = () => {
+    toast({
+      title: "Recuperação de Senha",
+      description: "A funcionalidade de recuperação de senha ainda não está implementada. Por favor, entre em contato com o suporte.",
+      variant: "default",
+    });
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -131,6 +139,16 @@ export default function Login() {
                   required
                 />
               </div>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                variant="link"
+                type="button"
+                onClick={handleForgotPassword}
+                className="p-0 h-auto text-sm text-muted-foreground hover:text-primary"
+              >
+                Esqueci minha senha
+              </Button>
             </div>
             <Button type="submit" className="w-full">
               {isRegistering ? "Cadastrar e Entrar" : "Entrar"}
