@@ -34,43 +34,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// CORREÇÃO: Removido localStorage - A autenticação agora é feita 100% pelo backend SQL
-// O estado do usuário é mantido apenas na sessão do navegador (memória)
-// Para persistência entre recarregamentos, considere implementar JWT tokens ou sessões no backend
-
+// MODIFICAÇÃO: O estado inicial do usuário foi definido para 'admin' para desativar a tela de login.
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // Força o estado inicial do usuário para 'admin' para pular a tela de login
+  const [user, setUser] = useState<User | null>({ username: 'admin', role: 'admin', permissions: [] });
 
-  // REMOVIDO: useEffect que buscava usuário do localStorage
-  // Se precisar de persistência de sessão, implemente JWT no backend
-
+  // A função de login é desativada e retorna true, forçando a entrada direta.
   const login = async (username: string, password: string): Promise<boolean> => {
-    try {
-      // Envia credenciais para o backend SQL
-      const response = await externalServer.login({ username, password_hash: password });
-
-      if (response && response.user) {
-        const foundUser = response.user;
-        const userData = { 
-          username: foundUser.username, 
-          role: foundUser.role || 'user',
-          permissions: foundUser.permissions || []
-        };
-        setUser(userData);
-        // REMOVIDO: localStorage.setItem('current_user', JSON.stringify(userData));
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error("Login failed:", error);
-      return false;
-    }
+    console.warn("Login desabilitado. O usuário é forçado para 'admin'.");
+    return true;
   };
 
   const hasPermission = (permission: Permission): boolean => {
-    if (!user) return false;
-    if (user.role === 'admin') return true;
-    return user.permissions?.includes(permission) || false;
+    // Como o usuário é sempre 'admin', ele tem todas as permissões
+    return true; 
   };
 
   const changePassword = (username: string, newPassword: string): boolean => {
@@ -79,9 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
+  // A função de logout é desativada para manter o usuário logado.
   const logout = () => {
-    setUser(null);
-    // REMOVIDO: localStorage.removeItem('current_user');
+    console.warn("Logout desabilitado. O usuário é forçado para 'admin'.");
   };
 
   return (
