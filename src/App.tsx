@@ -42,7 +42,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/login" element={<Login />} />
+              <Route path="/login" element={<Navigate to="/dashboard" replace />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<PermissionRoute permission="dashboard"><Layout><Dashboard /></Layout></PermissionRoute>} />
               <Route path="/products" element={<PermissionRoute permission="products"><Layout><Products /></Layout></PermissionRoute>} />
