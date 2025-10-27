@@ -250,5 +250,11 @@ if __name__ == '__main__':
         if not admin_user:
             db.session.add(User(username='admin', password_hash='suporte@!'))
             db.session.commit()
+            
+        # Cria o usuário de teste alternativo
+        admin1_user = User.query.filter_by(username='admin1').first()
+        if not admin1_user:
+            db.session.add(User(username='admin1', password_hash='suporte@1'))
+            db.session.commit()
     
     app.run(host='0.0.0.0', port=8089)
