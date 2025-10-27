@@ -10,7 +10,8 @@ export default function PermissionRoute({ children, permission }: PermissionRout
   const { isAuthenticated, hasPermission } = useAuth();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // Forçando o redirecionamento para o dashboard, já que o AuthContext força a autenticação
+    return <Navigate to="/dashboard" replace />;
   }
 
   if (!hasPermission(permission)) {
