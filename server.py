@@ -248,7 +248,7 @@ if __name__ == '__main__':
         # Cria o usuário 'admin' se não existir para o teste
         admin_user = User.query.filter_by(username='admin').first()
         if not admin_user:
-            db.session.add(User(username='admin', password_hash='suporte@!'))
+            db.session.add(User(username='admin', password_hash='suporte@1'))
             db.session.commit()
             
         # Cria o usuário de teste alternativo
