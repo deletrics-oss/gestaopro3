@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { externalServer } from '@/api/externalServer';
+import { externalServer } from '@/api/externalServer'; // Importar o externalServer
 
 export type Permission = 
   | 'dashboard' 
@@ -34,12 +34,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// SOLUÇÃO DE BYPASS: Força o login para o usuário 'admin' com a senha '123456'
+// Usuários padrão armazenados no localStorage - PERMANENTES
+// Usuários padrão armazenados no localStorage - REMOVIDO
+// A autenticação agora é feita pelo backend SQL
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Tenta carregar usuário do localStorage (se houver)
+    // Verificar se há usuário logado
     const storedUser = localStorage.getItem('current_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -47,11 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    const DEFAULT_ADMIN_PASSWORD = "123456"; // Senha padrão para fallback - Altere no seu ambiente!
-    const DEFAULT_ADMIN_USER = "admin";
-
-    // 1. Tenta o login normal no backend
     try {
+      // Simulação: O frontend deve enviar o hash da senha, mas o backend
+      // está simplificado para apenas verificar a existência do usuário por username.
+      // Para o teste, vamos enviar a senha em texto puro para o backend simplificado.
       const response = await externalServer.login({ username, password_hash: password });
 
       if (response && response.user) {
@@ -65,24 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('current_user', JSON.stringify(userData));
         return true;
       }
+      return false;
     } catch (error) {
-      console.error("Login failed (Backend communication error):", error);
+      console.error("Login failed:", error);
+      return false;
     }
-    
-    // 2. Fallback: Se o login normal falhar, tenta com a senha padrão
-    if (username === DEFAULT_ADMIN_USER && password === DEFAULT_ADMIN_PASSWORD) {
-      console.warn("Login falhou, usando fallback de senha padrão para admin.");
-      const userData = { 
-        username: DEFAULT_ADMIN_USER, 
-        role: 'admin' as const,
-        permissions: []
-      };
-      setUser(userData);
-      localStorage.setItem('current_user', JSON.stringify(userData));
-      return true;
-    }
-
-    return false;
   };
 
   const hasPermission = (permission: Permission): boolean => {
